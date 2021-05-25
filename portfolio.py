@@ -155,7 +155,7 @@ if page == 'Kickstarter planner':
     
     #@st.cache()
     def load_k2():
-        k_mod = load("https://github.com/jcolethornton/ML_portfolio/blob/cff3bf04be46a002635ddff9b36c8d4f3a6775e6/ks_project.joblib.dat")
+        k_mod = load("https://github.com/jcolethornton/ML_portfolio/raw/main/ks_project.joblib.dat")
         return k_mod 
     k_mod = load_k2()
     
@@ -302,7 +302,7 @@ if page == 'Spotify algorithm':
     
     #@st.cache()
     def load_spot():
-        s_mod = load("https://github.com/jcolethornton/ML_portfolio/blob/cff3bf04be46a002635ddff9b36c8d4f3a6775e6/spot_project.joblib.dat")
+        s_mod = load("https://github.com/jcolethornton/ML_portfolio/raw/main/spot_project.joblib.dat")
         return s_mod
     s_mod = load_spot()
     
