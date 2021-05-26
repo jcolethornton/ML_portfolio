@@ -15,22 +15,10 @@ from sklearn.model_selection import train_test_split
 from category_encoders import OrdinalEncoder
 from sklearn.pipeline import make_pipeline
 from pdpbox import pdp
-from joblib import load
 from sklearn.metrics import f1_score
 from sklearn.utils import compute_class_weight
 from datetime import time, timedelta
-
-# format tables to not show index
-st.markdown(""" 
-    <style>
-    table td:nth-child(1) {
-        display: none
-        }
-    table th:nth-child(1) {
-        display: none
-        }
-    </style>
-    """, unsafe_allow_html=True)
+import category_encoders as ce
 
 # create pages
 page = st.sidebar.radio('Navigation',
@@ -45,13 +33,17 @@ picture = "https://www.newzealand.com/assets/Tourism-NZ/Auckland/1975559ab3/img-
 
 if page == 'About':
     st.title('About')
-    st.image(picture, width=400, output_format='PNG')
+    st.image(picture, width=650, output_format='PNG')
 
     st.markdown("""
                 My name is Jaryd Thornton, I'm a Data Engineer from Auckland, New Zealand. 
-                I created this platform not only as a place to submit my work in the public domain but also 
-                to allow anyone to experience machine learning in a fun and interactive way.
+                I created this platform as a place where anyone can come and experience machine learning in a fun and interactive way.
                 """)
+    
+    st.markdown("""_
+                UPDATE: Saving model pipelines can cause failures over time with new releases in python. 
+                To avoid failure some models in this project are training in real-time.
+                _""")
                 
     st.subheader('**NLP Sentiment analysis**')
     st.markdown("""
@@ -80,7 +72,7 @@ if page == 'About':
 
     st.subheader('**Fuel efficiency**')
     st.markdown("""
-                Another regression problem with a twist. All the models on this platform with the exception of this one, have been trained and tuned prior to being 
+                Another regression problem with a twist. All the models on this platform with the exception of this one, have been tuned prior to being 
                 loaded. This model has the benefit of using a much smaller dataset, so that we can make tuning adjustments, change what we are wanting to predict and 
                 analyse feature correlations all in real-time. This enables you the user to not only interact with the results of a machine learning model but also to 
                 adapt and tweak the model to improve its performance. The model works with vehicle engine specifications to predict the following: Annual fuel costs, 
@@ -94,11 +86,10 @@ if page == 'NLP Sentiment analysis':
     def build_model():
         mod = load_model('nlp_files')
         return mod
+    mod = build_model()
     
     st.title("NLP Sentiment analysis")
     st.markdown("Check your message to see how it conveys.")
-
-    mod = build_model()
     
     text = st.text_input('Write your message here...')
     if text != "":
@@ -154,12 +145,6 @@ if page == 'NLP Sentiment analysis':
 if page == 'Kickstarter planner':
     
     #@st.cache()
-    def load_k2():
-        k_mod = load("https://github.com/jcolethornton/ML_portfolio/raw/main/ks_project.joblib.dat?raw=true")
-        return k_mod 
-    k_mod = load_k2()
-    
-    #@st.cache()
     def load_k2_files():
         df1 = pd.read_csv('https://raw.githubusercontent.com/jcolethornton/datasets/main/ks1.csv')
         df2 = pd.read_csv('https://raw.githubusercontent.com/jcolethornton/datasets/main/ks2.csv')
@@ -171,16 +156,9 @@ if page == 'Kickstarter planner':
         df = df.drop('Unnamed: 0', axis=1)
         return df
     df = load_k2_files()
-    
-    #class weights
-    X_train_all = df.drop('win', axis=1).copy()
-    y_train_all = df['win'].copy()
-    class_weight_all = compute_class_weight('balanced', y_train_all.unique(), y_train_all)
-    weight_dict_all = {y_: weight for y_, weight in zip(y_train_all.unique(), class_weight_all)}
-    y_weights_all = y_train_all.map(weight_dict_all)
         
     st.title("Kickstarter campaign predictor")
-    st.markdown("""Enter the details your next kickstarter campaign to the left. Then when your ready give your campaign 
+    st.markdown("""Enter the details your next kickstarter campaign to the left. Then when you're ready give your campaign 
                 a name to predict the likelihood that it will succeed.""")
     
     # create new kickstarter campaign
@@ -193,38 +171,57 @@ if page == 'Kickstarter planner':
     time = st.sidebar.number_input("Campaign runtime 1-60 days", min_value=1, max_value=60, value=30)
 
     if name != '':
-        name_char_count = len(name)
-        name_word_count = len(name.split(' '))
-        
-        goal_group = df.loc[df['goal_adj'] == goal]['goal_group'].unique()[0]
-        test = pd.DataFrame({
-        'category' : cat,
-        'main_category' : mcat,
-        'goal_adj' : goal,
-        'time' : time,
-        'goal_group' : goal_group,
-        'name_charc' : name_char_count,
-        'name_wc' : name_word_count,
-        'name_the' : np.where('The' in  name , 1, 0),
-        'cat_backers' : df.loc[df['category'] == cat].iloc[0][9],
-        'cat_goal' : df.loc[df['category'] == cat].iloc[0][10],
-        'cat_pledged' : df.loc[df['category'] == cat].iloc[0][11],
-        'cat_win_rate' : df.loc[df['category'] == cat].iloc[0][12],
-        'mcat_backers' : df.loc[df['main_category'] == mcat].iloc[0][13],
-        'mcat_goal' : df.loc[df['main_category'] == mcat].iloc[0][14],
-        'mcat_pledged' : df.loc[df['main_category'] == mcat].iloc[0][15],
-        'mcat_win_rate' : df.loc[df['main_category'] == mcat].iloc[0][16],
-        'goalgroup_backers' : df.loc[df['goal_group'] == goal_group].iloc[0][17],
-        'goalgroup_goal' : df.loc[df['goal_group'] == goal_group].iloc[0][18],
-        'goalgroup_pledged' : df.loc[df['goal_group'] == goal_group].iloc[0][19],
-        'goalgroup_win_rate' : df.loc[df['goal_group'] == goal_group].iloc[0][20],
-        }, index=[0])
+
+        with st.spinner(text='Please be patient. Clever things are happening.'):    
+            
+            name_char_count = len(name)
+            name_word_count = len(name.split(' '))
+            
+            goal_group = df.loc[df['goal_adj'] == goal]['goal_group'].unique()[0]
+            test = pd.DataFrame({
+            'category' : cat,
+            'main_category' : mcat,
+            'goal_adj' : goal,
+            'time' : time,
+            'goal_group' : goal_group,
+            'name_charc' : name_char_count,
+            'name_wc' : name_word_count,
+            'name_the' : np.where('The' in  name , 1, 0),
+            'cat_backers' : df.loc[df['category'] == cat].iloc[0][9],
+            'cat_goal' : df.loc[df['category'] == cat].iloc[0][10],
+            'cat_pledged' : df.loc[df['category'] == cat].iloc[0][11],
+            'cat_win_rate' : df.loc[df['category'] == cat].iloc[0][12],
+            'mcat_backers' : df.loc[df['main_category'] == mcat].iloc[0][13],
+            'mcat_goal' : df.loc[df['main_category'] == mcat].iloc[0][14],
+            'mcat_pledged' : df.loc[df['main_category'] == mcat].iloc[0][15],
+            'mcat_win_rate' : df.loc[df['main_category'] == mcat].iloc[0][16],
+            'goalgroup_backers' : df.loc[df['goal_group'] == goal_group].iloc[0][17],
+            'goalgroup_goal' : df.loc[df['goal_group'] == goal_group].iloc[0][18],
+            'goalgroup_pledged' : df.loc[df['goal_group'] == goal_group].iloc[0][19],
+            'goalgroup_win_rate' : df.loc[df['goal_group'] == goal_group].iloc[0][20],
+            }, index=[0])
+
+            # Train model
+            X_train_all = df.drop('win', axis=1).copy()
+            y_train_all = df['win'].copy()
+            class_weight_all = compute_class_weight('balanced', y_train_all.unique(), y_train_all)
+            weight_dict_all = {y_: weight for y_, weight in zip(y_train_all.unique(), class_weight_all)}
+            y_weights_all = y_train_all.map(weight_dict_all)
+
+            mod = xgb.XGBClassifier(objective='multi:softprob', eval_metric='mlogloss', num_class=2)
+
+            # Pipe
+            k_mod = make_pipeline(ce.TargetEncoder(), mod)
+            kwargs = {k_mod.steps[1][0] + '__sample_weight': y_weights_all}
+            k_mod.fit(X_train_all, y_train_all, **kwargs)
+
+            st.success('Done')
         
         success = k_mod.predict_proba(test)[0][1]
         success_form = "{0:.2f}%".format(success * 100)
+
         st.header(f"This campaign has a {success_form} chance in succeeding")
 
-        
         # reasons
         def roundup(x):
             return int(np.around(x))
@@ -297,15 +294,11 @@ if page == 'Kickstarter planner':
 if page == 'Spotify algorithm':
     
     st.title('Compose a number one song')
-    st.markdown("""By analysing Spotify's algorithm data we can determine the musical parameters that make a popular song.
-                Input your musical paramters of your song to the left, then give your song a name to predict its popularity.""")
+    st.markdown("""By analysing Spotify's algorithm data we can pick apart the musical building blocks that make up a popular song.
+                Design your next song by inputing muscial parameters into the left hand sidebar. 
+                When you are ready, give your song a name to run the model and predict the songs popularity.""")
     
     #@st.cache()
-    def load_spot():
-        s_mod = load("https://github.com/jcolethornton/ML_portfolio/raw/main/spot_project.joblib.dat?raw=true")
-        return s_mod
-    s_mod = load_spot()
-    
     keys = {0: 'C',1:'C#',2:'D',3:'D#',4:'E',5:'F',6:'F#',7:'G',8:'G#',9:'A',10:'A#',11:'B'}
     inv_keys = {v: k for k, v in keys.items()}
     modes = {0: 'Minor', 1: 'Major'}
@@ -382,7 +375,7 @@ if page == 'Spotify algorithm':
                  'trap',
                  'uplifting trance']
     
-    
+    quality = st.selectbox("Model Speed", ['Quick', 'Accurate'])
     name = st.text_input("Name of your song") # doesn't input into model
     st.sidebar.markdown('Input song parameters')
     genre = st.sidebar.selectbox('Genre', genres, index=46) 
@@ -403,52 +396,85 @@ if page == 'Spotify algorithm':
     valence = st.sidebar.slider('Valence', min_value=0.0, max_value=1.0, value=0.45)
     
     if name != '':
-        # Prediction DataFrame
-        df_pred = pd.DataFrame({
-            'acousticness'    : acoustic, #float
-            'danceability'    : dance, #float
-            'duration_ms'     : ((time.minute * 60) + time.second) * 1000, # int
-            'energy'          : energy, #float
-            'explicit'        : explicit,# int
-            'instrumentalness': instruments, #float
-            'key'             : None, # int
-            'liveness'        : live, # float
-            'loudness'        : loudness, #float
-            'mode'            : None, # int
-            'speechiness'     : speech, #float
-            'tempo'           : tempo, #float
-            'valence'         : valence, #float
-            'genres'          : genre, 
-            'key_str'         : key,
-            'mode_str'        : mode,
-            'key_mode'        : None,
-            'duration_min'    : time.minute,
-            'duration_sec'    : time.second,
-            'duration_mm:ss'  : str(time.minute) + ":" + str(time.second)},
-            index=[0])
-            
-        df_pred['key'] = df_pred['key_str'].replace((inv_keys))
-        df_pred['mode'] = df_pred['mode_str'].replace((inv_modes))
-        df_pred['mode'] = df_pred['mode'].astype(int)
-        df_pred['key_mode'] = df_pred['key_str'] + " " + df_pred['mode_str']
-        df_pred['duration_min'] = df_pred['duration_min'].astype('str')
-        df_pred['duration_sec'] = df_pred['duration_sec'].astype('str')
-        df_pred['acousticness'] = df_pred['acousticness'].astype(float)
-        df_pred['danceability'] = df_pred['danceability'].astype(float)
-        df_pred['duration_ms'] = df_pred['duration_ms'].astype(int)
-        df_pred['energy'] = df_pred['energy'].astype(float)
-        df_pred['explicit'] = np.where(df_pred['explicit']== "No", 0,1)
-        df_pred['instrumentalness'] = df_pred['instrumentalness'].astype(float)
-        df_pred['speechiness'] = df_pred['speechiness'].astype(float)
-        df_pred['tempo'] = df_pred['tempo'].astype(float)
-        df_pred['valence'] = df_pred['valence'].astype(float)
-        
-        # Predictions
-        popularrity = s_mod.predict(df_pred)[0]
-        popularrity_form = "{0:.2f}".format(popularrity /10)  
-        st.header(f"{name} has a popularity score of {popularrity_form} out of 10")
 
-        df1 = pd.read_csv('https://raw.githubusercontent.com/jcolethornton/datasets/main/spotify_summary_duration.csv')
+        with st.spinner(text='Please be patient. Clever things are happening.'):
+
+            # load files
+            column_names = ['acousticness', 'danceability', 'duration_ms', 'energy', 'explicit',
+            'instrumentalness', 'liveness', 'loudness', 'popularity',
+            'speechiness', 'tempo', 'valence', 'genres',
+            'key_mode', 'duration_min']
+            df = pd.DataFrame()
+            for col in column_names:
+                col = pd.read_csv(f'https://raw.githubusercontent.com/jcolethornton/datasets/main/Spotify_chunk_{col}.csv')
+                col = col.drop('Unnamed: 0', axis=1)
+                if df.empty:
+                    df = col
+                else:
+                    df = df.merge(col, how='inner', on='index')
+
+            df = df.drop('index', axis=1)
+            
+
+            # Prediction DataFrame
+            df_pred = pd.DataFrame({
+                'acousticness'    : acoustic, #float
+                'danceability'    : dance, #float
+                'duration_ms'     : ((time.minute * 60) + time.second) * 1000, # int
+                'energy'          : energy, #float
+                'explicit'        : explicit,# int
+                'instrumentalness': instruments, #float
+                'liveness'        : live, # float
+                'loudness'        : loudness, #float
+                'speechiness'     : speech, #float
+                'tempo'           : tempo, #float
+                'valence'         : valence, #float
+                'genres'          : genre, 
+                'key_mode'        : key + " " + mode,
+                'duration_min'    : time.minute, # int
+                },
+                index=[0])
+                
+            df_pred['duration_min'] = df_pred['duration_min'].astype(int)
+            df_pred['acousticness'] = df_pred['acousticness'].astype(float)
+            df_pred['danceability'] = df_pred['danceability'].astype(float)
+            df_pred['duration_ms'] = df_pred['duration_ms'].astype(int)
+            df_pred['energy'] = df_pred['energy'].astype(float)
+            df_pred['explicit'] = np.where(df_pred['explicit']== "No", 0,1)
+            df_pred['instrumentalness'] = df_pred['instrumentalness'].astype(float)
+            df_pred['speechiness'] = df_pred['speechiness'].astype(float)
+            df_pred['tempo'] = df_pred['tempo'].astype(float)
+            df_pred['valence'] = df_pred['valence'].astype(float)
+
+            # Train model
+            X = df.drop('popularity', axis=1)
+            y = df['popularity']
+
+            if quality == 'Quick':
+                mod   = xgb.XGBRegressor(objective       = 'reg:squarederror',
+                                        n_estimators     = 10, # 500
+                                        learning_rate    = 0.3, # 0.1
+                                        max_depth        = 2, # 10
+                                        subsample        = 0.8,
+                                        colsample_bytree = 0.6)
+            else:
+                mod   = xgb.XGBRegressor(objective = 'reg:squarederror',
+                        n_estimators     = 500,
+                        learning_rate    = 0.1, 
+                        max_depth        = 10,
+                        subsample        = 0.8,
+                        colsample_bytree = 0.6)
+
+            s_mod  = make_pipeline(ce.OrdinalEncoder(), mod)
+            s_mod.fit(X,y)
+            
+            # Predictions
+            popularrity = s_mod.predict(df_pred)[0]
+            popularrity_form = "{0:.2f}".format(popularrity /10) 
+
+            st.success('Done')
+            st.header(f"{name} has a popularity score of {popularrity_form} out of 10")
+
         df2 = pd.read_csv('https://raw.githubusercontent.com/jcolethornton/datasets/main/spotify_summary_genre.csv')
         df3 = pd.read_csv('https://raw.githubusercontent.com/jcolethornton/datasets/main/spotify_summary_keys.csv')
         df4 = pd.read_csv('https://raw.githubusercontent.com/jcolethornton/datasets/main/spotify_summary_key-genre.csv')
@@ -516,8 +542,9 @@ if page == 'Fuel efficiency':
 
     st.title("Fuel efficiency")
     st.markdown('Using regularized gradient boosting this model works on three regression problems to predict:')
-    st.markdown("**Annual Fuel Costs | Fuel economy | CO2 emmissions**")
-    st.markdown('Input vehicle engine parameters on the left hand sidebar.')
+    st.markdown("Annual Fuel Costs | Fuel economy | CO2 emmissions")
+    st.markdown('Input vehicle parameters on the left hand sidebar.')
+    st.markdown('Change the models accruacy by fine tuning the model paramters below.')
 
     @st.cache
     def load_data():
@@ -711,6 +738,11 @@ if page == 'Fuel efficiency':
     st.table(feat)
     
     st.subheader(f"Correlation analysis using partial dependence")
+    st.markdown("""
+                Partial dependence shows us the relationship between each feature and the models prediction. 
+                This is evaluated by taking an aspect of a feature for example Sports cars and applying that aspect to all the results. 
+                Below we can evaluate how two features correlate with one another and what their predicted output is.
+                """)
 
     feature1 = st.selectbox('Cylinders / Displacment', ['Engine Cylinders','Engine Displacement'])
     core_feat = feat.loc[~(feat['Feature'].isin(['Engine Cylinders','Engine Displacement']))]
