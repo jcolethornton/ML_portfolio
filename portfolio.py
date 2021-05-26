@@ -24,7 +24,7 @@ import category_encoders as ce
 page = st.sidebar.radio('Navigation',
         ['About', 
         'NLP Sentiment analysis',
-        'Spotify algorithm',
+        'Song popularity',
         'Kickstarter planner',
         'Fuel efficiency'])
 
@@ -55,7 +55,7 @@ if page == 'About':
                 your message is coming across the right way.
                 """)
                 
-    st.subheader('**Spotify algorithm**')
+    st.subheader('**Song popularity**')
     st.markdown("""
                 Recently gradient boosting has taken over as the prefered and most accurate machine learning method for regression and classification on structured datasets. 
                 By tapping in and analysing Spotify's algorithm, this regression model takes in characteristics and parameters of a song and returns 
@@ -160,6 +160,7 @@ if page == 'Kickstarter planner':
     st.title("Kickstarter campaign predictor")
     st.markdown("""Enter the details your next kickstarter campaign to the left. Then when you're ready give your campaign 
                 a name to predict the likelihood that it will succeed.""")
+    st.info('Input details of your campaign into the left hand sidebar.')
     
     # create new kickstarter campaign
     st.sidebar.markdown('Input campaign details')
@@ -291,12 +292,13 @@ if page == 'Kickstarter planner':
         k_mod.named_steps['xgbclassifier']
                     
         
-if page == 'Spotify algorithm':
+if page == 'Song popularity':
     
     st.title('Compose a number one song')
     st.markdown("""By analysing Spotify's algorithm data we can pick apart the musical building blocks that make up a popular song.
                 Design your next song by inputing muscial parameters into the left hand sidebar. 
                 When you are ready, give your song a name to run the model and predict the songs popularity.""")
+    st.info('Input details of your song into the left hand sidebar.')
     
     #@st.cache()
     keys = {0: 'C',1:'C#',2:'D',3:'D#',4:'E',5:'F',6:'F#',7:'G',8:'G#',9:'A',10:'A#',11:'B'}
@@ -415,7 +417,6 @@ if page == 'Spotify algorithm':
 
             df = df.drop('index', axis=1)
             
-
             # Prediction DataFrame
             df_pred = pd.DataFrame({
                 'acousticness'    : acoustic, #float
@@ -543,8 +544,8 @@ if page == 'Fuel efficiency':
     st.title("Fuel efficiency")
     st.markdown('Using regularized gradient boosting this model works on three regression problems to predict:')
     st.markdown("Annual Fuel Costs | Fuel economy | CO2 emmissions")
-    st.markdown('Input vehicle parameters on the left hand sidebar.')
-    st.markdown('Change the models accruacy by fine tuning the model paramters below.')
+    st.info('Input details of your campaign into the left hand sidebar.')
+    st.info('Change the models accruacy by fine tuning the model parameters below.')
 
     @st.cache
     def load_data():
