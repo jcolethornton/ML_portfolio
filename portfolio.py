@@ -243,7 +243,7 @@ if page == 'Kickstarter planner':
                 if name_char_count < 60:
                     if words_add == 1:
                         st.markdown(f"Longer names are more descriptive and usually do better than those with shorter names.\
-                                Try adding juat one more word to your campaign name. Names with 5 or more words do the best.\
+                                Try adding just one more word to your campaign name. Names with 5 or more words do the best.\
                                     However, too many characters in your name will cause the reader to disengage.\
                                         Your current character count is {name_char_count} which is below the recommended limit of 60")
                     else:
@@ -643,11 +643,11 @@ if page == 'Fuel efficiency':
     # Drivetrain CC and cylinder selection
     if drive != 'Any':
         engine_c = st.sidebar.selectbox('Number of cylinders', sorted(df.loc[(df['Drive'] == drive) &\
-            (df['Class'] == v_class)]['Engine Cylinders'].unique()), index=4)
+            (df['Class'] == v_class)]['Engine Cylinders'].unique()))
 
         engine_d = st.sidebar.selectbox('CC displacement', sorted(df.loc[(df['Drive'] == drive) &\
              (df['Engine Cylinders'] == engine_c) &\
-                 (df['Class'] == v_class)]['Engine Displacement'].unique()),index=2)
+                 (df['Class'] == v_class)]['Engine Displacement'].unique()))
         
         df = df.loc[(df['Engine Cylinders'] == engine_c) &\
              (df['Engine Displacement'] == engine_d) &\
@@ -655,15 +655,15 @@ if page == 'Fuel efficiency':
                       (df['Class'] == v_class)]
 
     else:
-        engine_c = st.sidebar.selectbox('Number of cylinders', sorted(df.loc[(df['Class'] == v_class)]['Engine Cylinders'].unique()),index=4)
+        engine_c = st.sidebar.selectbox('Number of cylinders', sorted(df.loc[(df['Class'] == v_class)]['Engine Cylinders'].unique()))
         engine_d = st.sidebar.selectbox('CC displacement', sorted(df.loc[(df['Engine Cylinders'] == engine_c) &\
-            (df['Class'] == v_class)]['Engine Displacement'].unique()),index=0)
+            (df['Class'] == v_class)]['Engine Displacement'].unique()))
         df = df.loc[(df['Engine Cylinders'] == engine_c) &\
              (df['Engine Displacement'] == engine_d) &\
                  (df['Class'] == v_class)]
 
     if len(df['Turbocharged'].unique()) == 2:
-        turbo = st.sidebar.selectbox('Turbo', ['Yes', 'No'], index=1)
+        turbo = st.sidebar.selectbox('Turbo', ['Yes', 'No'])
         df = df.loc[df['Turbocharged'] == turbo]
     else:
         turbo = st.sidebar.selectbox('Turbo', ["Not availble"])
