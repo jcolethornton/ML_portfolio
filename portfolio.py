@@ -666,7 +666,7 @@ if page == 'Fuel efficiency':
         turbo = st.sidebar.selectbox('Turbo', ['Yes', 'No'])
         df = df.loc[df['Turbocharged'] == turbo]
     else:
-        turbo = st.sidebar.selectbox('Turbo', ["Not availble"])
+        turbo = st.sidebar.selectbox('Turbo', ["Not available"])
 
     fuel_type = st.sidebar.selectbox('Fuel type', sorted(df['Fueled by'].unique())) 
 
@@ -678,7 +678,7 @@ if page == 'Fuel efficiency':
     y = df_2[predict]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=27)
 
-    st.markdown("**Tune model parameters:**")
+    st.markdown("**Tune model parameters:** _descriptions below_")
     estimators = st.slider('Number of esimators', min_value=10, max_value=1000, value=750)
     eta = st.slider('Learning rate', min_value=0.001, max_value=0.4, value=0.05)
     max_d = st.slider('Max depth', min_value=1, max_value=10, value=2)
@@ -785,6 +785,37 @@ if page == 'Fuel efficiency':
     axes['pdp_inter_ax']['_pdp_inter_ax'].set_yticklabels(OE2[feature2].tolist())
     
     st.write(fig)
+   
+    st.markdown("**Gradient boosting model & parameter descriptions:**")
+    st.markdown("""Gradient Boosting like Random Forests work off an ensemble of decision trees. Decision trees are great for filtering out outliers 
+                and noise that don't represent the data as a whole. However, decision trees alone are week predictors and require the use of an ensemble to 
+                become effective. Below is an example of a simple three 
+                tree ensemble with each circle representing a single terminal node. Each terminal node makes a split on a feature for example, 
+                engine cylinders greater than 6. The split will divide the feature into two further terminal nodes on the next layer one with greater than 
+                6 cylinders and the other less than or equal to 6 cylinders. These subsequent notes are then 
+                split on another feature and so on. The bottom layer of each tree will result in what's called a leaf, where the tree will make 
+                a prediction based on the splits before it and compare this prediction with actuals to then determine the error rate (how much it was off by). 
+                The initial prediction of the first tree is almost entirely random and won't represent anything 
+                close to the truth. For each tree or round in the ensemble, the model attempts to reduce the error rate by comparing the error rates to the tree before it. 
+                Overfitting is where a model wrongly assumes that certain features correlate to a certain outcome based on the information received. We can identify 
+                overfitting by training our models on training sets and testing them on a separate dataset that the model has not been trained on. Overfitting is 
+                very common with machine learning techniques, but luckily we have parameters that we can tune to overcome this. Below is a description of some of the 
+                parameters we can use to tune our models.""")
+
+    st.image('https://www.mdpi.com/water/water-12-01703/article_deploy/html/images/water-12-01703-g001.png', width=650)
+
+    st.markdown("""**Number of estimators:** This is the number of rounds the model will do before stopping. _Helps to improve accuracy. 
+                however, to many estimators will cause the model to be trained on noise resulting in overfitting and low accuracy._""")
+    st.markdown("""**Learning rate:** Prevents overfitting by slowing down the rate in which corrections are made on subsequent rounds. 
+                _The lower the learning rate the less overfitting that will occur. However, more estimators are then required. (estimators and 
+                learning rate need to be tuned together)._""")
+    st.markdown("""**Max depth:** The depth of a tree is the number of terminal nodes per tree. _While the max depth of a tree can go upto 30 on a 
+                32-bit machine you would generally never want to exceed 10 as a high number of terminal nodes causes overfitting._""")
+    st.markdown("""**Sample by level:** Defines what percentage of features will be selected to be used on subsequent terminal node splits. 
+                _Reducing the possible number of features used in each split helps the model to reduce overfitting. However, if set too high 
+                it will prevent the model from making correlations between certain features_.""")
+    st.markdown("""**Sample by tree:** Defines what percentage of features will be selected to be used on each tree. 
+                _Similar to sample by level this helps to reduce overfitting_""")
 
     # Model params
     st.markdown("""
@@ -806,9 +837,3 @@ if page == 'Fuel efficiency':
     
     
     
-    
-        
-        
-        
-        
-        
