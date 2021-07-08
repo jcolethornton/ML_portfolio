@@ -4,21 +4,24 @@
 Created on Tue Jan 26 2021
 @author: Jaryd Thornton
 """
+
 import streamlit as st
-from tensorflow.keras.models import load_model
 import plotly.graph_objects as go
 import plotly.express as px
 import numpy as np
 import pandas as pd
 import xgboost as xgb
+from pdpbox import pdp
+from joblib import dump, load
+from datetime import time
+from datetime import timedelta
+from tensorflow.keras.models import load_model
 from sklearn.model_selection import train_test_split
 from category_encoders import OrdinalEncoder
 from sklearn.pipeline import make_pipeline
 from pdpbox import pdp
 from sklearn.metrics import f1_score
 from sklearn.utils import compute_class_weight
-from datetime import time, timedelta
-import category_encoders as ce
 
 # create pages
 page = st.sidebar.radio('Navigation',
@@ -48,7 +51,7 @@ if page == 'About':
     st.subheader('**NLP Sentiment analysis**')
     st.markdown("""
                 Natural language processors (NLP) uses neural networks to process and understand human language. 
-                Neural networks are designed to simulate the way the human brain analyzes and processes 
+                Neural networks are designed to simulate the way the human brain analyzes and proses 
                 information. I have built a NLP that processes a 
                 message of your choosing to determine the sentiment of the language. 
                 This can be used for checking an email before clicking send to determine if 
@@ -79,7 +82,7 @@ if page == 'About':
                 fuel economy (MPG/PMPL), and COS emissions.
                 """)
 
-    
+# Neural net model
 if page == 'NLP Sentiment analysis':
     
     @st.cache()
@@ -141,9 +144,11 @@ if page == 'NLP Sentiment analysis':
     The final accuracy score of this model is 87.3% which enables us to not only predict the sentiment of words used in text but also the combination of
     words.
     """)
-        
+
+# Kickstarter
 if page == 'Kickstarter planner':
-    
+
+
     #@st.cache()
     def load_k2_files():
         df1 = pd.read_csv('https://raw.githubusercontent.com/jcolethornton/datasets/main/ks1.csv')
@@ -156,29 +161,37 @@ if page == 'Kickstarter planner':
         df = df.drop('Unnamed: 0', axis=1)
         return df
     df = load_k2_files()
-        
+
     st.title("Kickstarter campaign predictor")
-    st.markdown("""Enter the details your next kickstarter campaign to the left. Then when you're ready give your campaign 
-                a name to predict the likelihood that it will succeed.""")
+    st.markdown("Enter the details your next kickstarter project into the model to predict the likelihood that it will succeed.")
     st.info('Input details of your campaign into the left hand sidebar.')
     
     # create new kickstarter campaign
     st.sidebar.markdown('Input campaign details')
     cats = df[['main_category', 'category']].drop_duplicates()
-    name = st.text_input("Name of your project")
+    name = st.text_input("Name of your project", value="My new Campaign")
     mcat = st.sidebar.selectbox('Main Category', cats.main_category.unique())
     cat = st.sidebar.selectbox('Sub Category', cats.loc[cats['main_category'] == mcat]['category'].unique())
     goal = st.sidebar.number_input("Set Funding goal",min_value=100, step=100, value=100)
     time = st.sidebar.number_input("Campaign runtime 1-60 days", min_value=1, max_value=60, value=30)
-
-    if name != '':
+    name_char_count = len(name)
+    name_word_count = len(name.split(' '))
+    goal_group = df.loc[df['goal_adj'] == goal]['goal_group'].unique()[0]
+   
+    # Submit button
+    form = st.form(key='my_form')
+    submit = form.form_submit_button('Run prediction model')
+    if submit:
 
         with st.spinner(text='Please be patient. Clever things are happening.'):    
+        
+            #@st.cache()
+            def load_k2():
+                k_mod = load("ks_project.joblib.dat")
+                return k_mod
+            k_mod = load_k2()
             
-            name_char_count = len(name)
-            name_word_count = len(name.split(' '))
-            
-            goal_group = df.loc[df['goal_adj'] == goal]['goal_group'].unique()[0]
+            # Build test dataframe
             test = pd.DataFrame({
             'category' : cat,
             'main_category' : mcat,
@@ -202,105 +215,84 @@ if page == 'Kickstarter planner':
             'goalgroup_win_rate' : df.loc[df['goal_group'] == goal_group].iloc[0][20],
             }, index=[0])
 
-            # Train model
-            X_train_all = df.drop('win', axis=1).copy()
-            y_train_all = df['win'].copy()
-            class_weight_all = compute_class_weight('balanced', y_train_all.unique(), y_train_all)
-            weight_dict_all = {y_: weight for y_, weight in zip(y_train_all.unique(), class_weight_all)}
-            y_weights_all = y_train_all.map(weight_dict_all)
+            success = k_mod.predict_proba(test)[0][1]
+            success_form = "{0:.2f}%".format(success * 100)
+            st.header(f"This campaign has a {success_form} chance in succeeding.")
 
-            mod = xgb.XGBClassifier(objective='multi:softprob', eval_metric='mlogloss', num_class=2)
+            # reasons
+            def roundup(x):
+                return int(np.around(x))
+            
+            reason_ch_cats_goal = df.groupby(['main_category', 'category', 'win'])['goal_adj']\
+                                        .mean().reset_index()
+            reason_ch_cats_goal = reason_ch_cats_goal.loc[(reason_ch_cats_goal['win'] == 1) &\
+                                (reason_ch_cats_goal['main_category'] == mcat) & (reason_ch_cats_goal['category'] == cat)]
+            mean_goal = roundup(reason_ch_cats_goal['goal_adj'].values)    
 
-            # Pipe
-            k_mod = make_pipeline(ce.TargetEncoder(), mod)
-            kwargs = {k_mod.steps[1][0] + '__sample_weight': y_weights_all}
-            k_mod.fit(X_train_all, y_train_all, **kwargs)
-
-            st.success('Done')
-        
-        success = k_mod.predict_proba(test)[0][1]
-        success_form = "{0:.2f}%".format(success * 100)
-
-        st.header(f"This campaign has a {success_form} chance in succeeding")
-
-        # reasons
-        def roundup(x):
-            return int(np.around(x))
-        
-        reason_ch_cats_goal = df.groupby(['main_category', 'category', 'win'])['goal_adj']\
-                                    .mean().reset_index()
-        reason_ch_cats_goal = reason_ch_cats_goal.loc[(reason_ch_cats_goal['win'] == 1) &\
-                            (reason_ch_cats_goal['main_category'] == mcat) & (reason_ch_cats_goal['category'] == cat)]
-        mean_goal = roundup(reason_ch_cats_goal['goal_adj'].values)    
-
-        st.subheader("**Campaign name**")
-        if ('The' not in name) | (name_word_count < 5):
-            st.markdown("It is usually overlooked but the name of your campaign is important in it's success.")
-            if name.split(' ')[0] != 'The':
-                st.markdown("Try prefacing your campaign name with a **The**")
-            if name_word_count < 5:
-                words_add = (5 - name_word_count)     
-                if name_char_count < 60:
-                    if words_add == 1:
-                        st.markdown(f"Longer names are more descriptive and usually do better than those with shorter names.\
-                                Try adding just one more word to your campaign name. Names with 5 or more words do the best.\
-                                    However, too many characters in your name will cause the reader to disengage.\
-                                        Your current character count is {name_char_count} which is below the recommended limit of 60")
+            st.subheader("**Campaign name**")
+            if ('The' not in name) | (name_word_count < 5):
+                st.markdown("It is usually overlooked but the name of your campaign is important in it's success.")
+                if name.split(' ')[0] != 'The':
+                    st.markdown("Try prefacing your campaign name with a **The**")
+                if name_word_count < 5:
+                    words_add = (5 - name_word_count)     
+                    if name_char_count < 60:
+                        if words_add == 1:
+                            st.markdown(f"Longer names are more descriptive and usually do better than those with shorter names.\
+                                    Try adding just one more word to your campaign name. Names with 5 or more words do the best.\
+                                        However, too many characters in your name will cause the reader to disengage.\
+                                            Your current character count is {name_char_count} which is below the recommended limit of 60")
+                        else:
+                            st.markdown(f"Longer names are more descriptive and usually do better than those with shorter names.\
+                                    Try adding {words_add} words to your campaign name. Names with 5 or more words do the best.\
+                                        However, too many characters in your name will cause the reader to disengage.\
+                                            Your current character count is {name_char_count} which is below the recommended limit of 60")
                     else:
-                        st.markdown(f"Longer names are more descriptive and usually do better than those with shorter names.\
-                                Try adding {words_add} words to your campaign name. Names with 5 or more words do the best.\
-                                    However, too many characters in your name will cause the reader to disengage.\
-                                        Your current character count is {name_char_count} which is below the recommended limit of 60")
-                else:
-                    st.markdown("""Interesting name choice! Not only does this name exceed the recommended character limit
-                                that can cause disengagement but it is also under 5 words which is considered too simplistic.
-                                Consider a new name for this project that is both descriptive yet short.""")   
-        else:
-            st.markdown("""It is usually overlooked but the name of your campaign is important in its success.
-                        Your name scores high in this model, nice choice.""")
+                        st.markdown("""Interesting name choice! Not only does this name exceed the recommended character limit
+                                    that can cause disengagement but it is also under 5 words which is considered too simplistic.
+                                    Consider a new name for this project that is both descriptive yet short.""")   
+            else:
+                st.markdown("""It is usually overlooked but the name of your campaign is important in its success.
+                            Your name scores high in this model, nice choice.""")
+                
+            st.subheader("**Funding goal**")
+            if goal > mean_goal:
+                st.markdown(f"""Your funding goal of ${goal} could be too ambitious. 
+                            Other successful campaigns for {cat} usually have a goal set to ${mean_goal}""")
+            else:
+                st.markdown(f"Your funding goal is within the expected range for {cat}")
             
-        st.subheader("**Funding goal**")
-        if goal > mean_goal:
-            st.markdown(f"""Your funding goal of ${goal} could be too ambitious. 
-                        Other successful campaigns for {cat} usually have a goal set to ${mean_goal}""")
-        else:
-            st.markdown(f"Your funding goal is within the expected range for {cat}")
-        
-        st.subheader("**Runtime**")
-        if time > 30:
-            st.markdown(f"Your campaign runtime of {time}-days is over the recommended.\
-                        Campaigns with a runtime of 30-days or less have higher success rates,\
-                            and create a helpful sense of urgency around your project.")
-        elif time < 10:
-            st.markdown(f"""{time} days may not be enough to achieve your goal. To increase your success
-                        try keeping your campaign at a 30-day runtime. If you need a quicker campaign 22-days is a good start.
-                            """)
-        else:
-            st.markdown("Your runtime is within the recommended range for a successful campaign.")
-            
-        # Model score
-        st.subheader("**Model Score**")    
-        score = np.round(f1_score(df['win'], k_mod.predict(df.drop('win',axis=1)),sample_weight=y_weights_all),2)
-        st.markdown(f"F1 Score: {score}")
+            st.subheader("**Runtime**")
+            if time > 30:
+                st.markdown(f"Your campaign runtime of {time}-days is over the recommended.\
+                            Campaigns with a runtime of 30-days or less have higher success rates,\
+                                and create a helpful sense of urgency around your project.")
+            elif time < 10:
+                st.markdown(f"""{time} days may not be enough to achieve your goal. To increase your success
+                            try keeping your campaign at a 30-day runtime. If you need a quicker campaign 22-days is a good start.
+                                """)
+            else:
+                st.markdown("Your runtime is within the recommended range for a successful campaign.")
+                
+            # Model score
+            st.subheader("**Model Score**")    
+            score = np.round(f1_score(df['win'], k_mod.predict(df.drop('win',axis=1))),2)
+            st.markdown(f"F1 Score: {score}")
 
-        # Model params
-        st.markdown("""
-        **How this model works:** This model uses XGBoost Classification, an advanced regularized gradient boosting tool. 
-        Gradient boosting iterates through a series of decision trees each time reducing log loss between the predicted and actual outcomes.
-        This model has been fine-tuned resulting in the following parameters:
-        """)
-        k_mod.named_steps['xgbclassifier']
-                    
-        
+            # Model params
+            st.markdown("""
+            **How this model works:** This model uses XGBoost Classification, an advanced regularized gradient boosting tool. 
+            Gradient boosting iterates through a series of decision trees each time reducing log loss between the predicted and actual outcomes.
+            This model has been fine-tuned resulting in the following parameters:
+            """)
+            k_mod.named_steps['xgbclassifier']
+        st.success('Done')
+
+
 if page == 'Song popularity':
-    
-    st.title('Compose a number one song')
-    st.markdown("""By analysing Spotify's algorithm data we can pick apart the musical building blocks that make up a popular song.
-                Design your next song by inputing muscial parameters into the left hand sidebar. 
-                When you are ready, give your song a name to run the model and predict the songs popularity.""")
-    st.info('Input details of your song into the left hand sidebar.')
-    
-    #@st.cache()
+
+
+    # Inputs
     keys = {0: 'C',1:'C#',2:'D',3:'D#',4:'E',5:'F',6:'F#',7:'G',8:'G#',9:'A',10:'A#',11:'B'}
     inv_keys = {v: k for k, v in keys.items()}
     modes = {0: 'Minor', 1: 'Major'}
@@ -377,8 +369,7 @@ if page == 'Song popularity':
                  'trap',
                  'uplifting trance']
     
-    quality = st.selectbox("Model Speed", ['Quick', 'Accurate'])
-    name = st.text_input("Name of your song") # doesn't input into model
+    name = st.text_input("Name of your song", value="My new song") # doesn't input into model
     st.sidebar.markdown('Input song parameters')
     genre = st.sidebar.selectbox('Genre', genres, index=46) 
     tempo = st.sidebar.slider('Tempo', min_value=0.0, max_value=250.0, value=120.0)
@@ -396,27 +387,41 @@ if page == 'Song popularity':
     live = st.sidebar.slider('Liveness', min_value=0.0, max_value=1.0, value=0.15)
     loudness = st.sidebar.slider('Loudness', min_value=-60.0, max_value=4.0, value=-7.0)
     valence = st.sidebar.slider('Valence', min_value=0.0, max_value=1.0, value=0.45)
-    
-    if name != '':
+   
+    column_order = ['acousticness',
+             'danceability',
+             'duration_ms',
+             'energy',
+             'explicit',
+             'instrumentalness',
+             'liveness',
+             'loudness',
+             'duration_sec',
+             'duration_mm:ss',
+             'speechiness',
+             'tempo',
+             'valence',
+             'genres',
+             'key_str',
+             'key',
+             'mode',
+             'mode_str',
+             'key_mode',
+             'duration_min']
+        
+    # Submit button
+    form = st.form(key='my_form')
+    submit = form.form_submit_button('Run prediction model')
+    if submit:
 
-        with st.spinner(text='Please be patient. Clever things are happening.'):
+        with st.spinner(text='Please be patient. Clever things are happening.'):    
 
-            # load files
-            column_names = ['acousticness', 'danceability', 'duration_ms', 'energy', 'explicit',
-            'instrumentalness', 'liveness', 'loudness', 'popularity',
-            'speechiness', 'tempo', 'valence', 'genres',
-            'key_mode', 'duration_min']
-            df = pd.DataFrame()
-            for col in column_names:
-                col = pd.read_csv(f'https://raw.githubusercontent.com/jcolethornton/datasets/main/Spotify_chunk_{col}.csv')
-                col = col.drop('Unnamed: 0', axis=1)
-                if df.empty:
-                    df = col
-                else:
-                    df = df.merge(col, how='inner', on='index')
+            #@st.cache()
+            def load_spot():
+                s_mod = load("spot_project.joblib.dat")
+                return s_mod
+            s_mod = load_spot()
 
-            df = df.drop('index', axis=1)
-            
             # Prediction DataFrame
             df_pred = pd.DataFrame({
                 'acousticness'    : acoustic, #float
@@ -425,18 +430,28 @@ if page == 'Song popularity':
                 'energy'          : energy, #float
                 'explicit'        : explicit,# int
                 'instrumentalness': instruments, #float
+                'key'             : None, # int
                 'liveness'        : live, # float
                 'loudness'        : loudness, #float
+                'mode'            : None, # int
                 'speechiness'     : speech, #float
                 'tempo'           : tempo, #float
                 'valence'         : valence, #float
-                'genres'          : genre, 
-                'key_mode'        : key + " " + mode,
-                'duration_min'    : time.minute, # int
-                },
+                'genres'          : genre,
+                'key_str'         : key,
+                'mode_str'        : mode,
+                'key_mode'        : None,
+                'duration_min'    : time.minute,
+                'duration_sec'    : time.second,
+                'duration_mm:ss'  : str(time.minute) + ":" + str(time.second)},
                 index=[0])
-                
-            df_pred['duration_min'] = df_pred['duration_min'].astype(int)
+
+            df_pred['key'] = df_pred['key_str'].replace((inv_keys))
+            df_pred['mode'] = df_pred['mode_str'].replace((inv_modes))
+            df_pred['mode'] = df_pred['mode'].astype(int)
+            df_pred['key_mode'] = df_pred['key_str'] + " " + df_pred['mode_str']
+            df_pred['duration_min'] = df_pred['duration_min'].astype('str')
+            df_pred['duration_sec'] = df_pred['duration_sec'].astype('str')
             df_pred['acousticness'] = df_pred['acousticness'].astype(float)
             df_pred['danceability'] = df_pred['danceability'].astype(float)
             df_pred['duration_ms'] = df_pred['duration_ms'].astype(int)
@@ -446,97 +461,78 @@ if page == 'Song popularity':
             df_pred['speechiness'] = df_pred['speechiness'].astype(float)
             df_pred['tempo'] = df_pred['tempo'].astype(float)
             df_pred['valence'] = df_pred['valence'].astype(float)
-
-            # Train model
-            X = df.drop('popularity', axis=1)
-            y = df['popularity']
-
-            if quality == 'Quick':
-                mod   = xgb.XGBRegressor(objective       = 'reg:squarederror',
-                                        n_estimators     = 10, # 500
-                                        learning_rate    = 0.3, # 0.1
-                                        max_depth        = 2, # 10
-                                        subsample        = 0.8,
-                                        colsample_bytree = 0.6)
-            else:
-                mod   = xgb.XGBRegressor(objective = 'reg:squarederror',
-                        n_estimators     = 500,
-                        learning_rate    = 0.1, 
-                        max_depth        = 10,
-                        subsample        = 0.8,
-                        colsample_bytree = 0.6)
-
-            s_mod  = make_pipeline(ce.OrdinalEncoder(), mod)
-            s_mod.fit(X,y)
-            
+            df_pred = df_pred[column_order]
+    
             # Predictions
             popularrity = s_mod.predict(df_pred)[0]
-            popularrity_form = "{0:.2f}".format(popularrity /10) 
+            popularrity_form = "{0:.2f}".format(popularrity /10)
 
-            st.success('Done')
             st.header(f"{name} has a popularity score of {popularrity_form} out of 10")
 
-        df2 = pd.read_csv('https://raw.githubusercontent.com/jcolethornton/datasets/main/spotify_summary_genre.csv')
-        df3 = pd.read_csv('https://raw.githubusercontent.com/jcolethornton/datasets/main/spotify_summary_keys.csv')
-        df4 = pd.read_csv('https://raw.githubusercontent.com/jcolethornton/datasets/main/spotify_summary_key-genre.csv')
+            df2 = pd.read_csv('https://raw.githubusercontent.com/jcolethornton/datasets/main/spotify_summary_genre.csv')
+            df3 = pd.read_csv('https://raw.githubusercontent.com/jcolethornton/datasets/main/spotify_summary_keys.csv')
+            df4 = pd.read_csv('https://raw.githubusercontent.com/jcolethornton/datasets/main/spotify_summary_key-genre.csv')
 
-        # Genre
-        df2 = df2.loc[df2['genres'].isin(genres)].sort_values(by='popularity')
-        df2['selected'] = np.where(
-            df2['genres'] == genre, 'y','n')
-        genre_chart = px.bar(
-            df2, x='popularity', y='genres', color='selected',
-            title=f'{genre} popularity compared to other genres')
+            # Genre
+            df2 = df2.loc[df2['genres'].isin(genres)].sort_values(by='popularity')
+            df2['selected'] = np.where(
+                df2['genres'] == genre, 'y','n')
+            genre_chart = px.bar(
+                df2, x='popularity', y='genres', color='selected',
+                title=f'{genre} popularity compared to other genres')
 
-        genre_chart.layout.update(
-            showlegend=False)
-        genre_chart.update_layout(
-            yaxis_categoryorder = 'total ascending')
-        
-        st.write(genre_chart)
+            genre_chart.layout.update(
+                showlegend=False)
+            genre_chart.update_layout(
+                yaxis_categoryorder = 'total ascending')
+            
+            st.write(genre_chart)
 
-        # Keys
-        df3 = df3.sort_values(by='popularity')
-        df3['selected'] = np.where(
-            df3['key_mode'] == df_pred['key_mode'].iloc[0], 'y','n')
-        key_chart = px.bar(
-            df3, x='popularity', y='key_mode', color='selected',
-            title=f"{df_pred['key_mode'].iloc[0]} popularity")
+            # Keys
+            df3 = df3.sort_values(by='popularity')
+            df3['selected'] = np.where(
+                df3['key_mode'] == df_pred['key_mode'].iloc[0], 'y','n')
+            key_chart = px.bar(
+                df3, x='popularity', y='key_mode', color='selected',
+                title=f"{df_pred['key_mode'].iloc[0]} popularity")
 
-        key_chart.layout.update(
-            showlegend=False)
-        key_chart.update_layout(
-            yaxis_categoryorder = 'category ascending')
-        
-        st.write(key_chart)
+            key_chart.layout.update(
+                showlegend=False)
+            key_chart.update_layout(
+                yaxis_categoryorder = 'category ascending')
+            
+            st.write(key_chart)
 
-        # Genre keys
-        df4 = df4.loc[df4['genres'].isin(genres)]
-        fig = go.Figure(data=[go.Mesh3d(x=(df4.genres),
-                    y=(df4.key_mode),
-                    z=(df4.popularity),
-                    opacity=0.5,
-                    color='rgba(244,22,100,0.6)'
-                    )])
+            # Genre keys
+            df4 = df4.loc[df4['genres'].isin(genres)]
+            fig = go.Figure(data=[go.Mesh3d(x=(df4.genres),
+                        y=(df4.key_mode),
+                        z=(df4.popularity),
+                        opacity=0.5,
+                        color='rgba(244,22,100,0.6)'
+                        )])
 
-        fig.update_layout(
-        scene = dict(
-            xaxis = dict(nticks=24,),
-            yaxis = dict(nticks=24,),
-            zaxis = dict(nticks=50, range=[0,100],),),
-        width=700, height=700,
-        margin=dict(r=0, l=0, b=0, t=0))
+            fig.update_layout(
+            scene = dict(
+                xaxis = dict(nticks=24,),
+                yaxis = dict(nticks=24,),
+                zaxis = dict(nticks=50, range=[0,100],),),
+            width=700, height=700,
+            margin=dict(r=0, l=0, b=0, t=0))
 
-        st.write(fig)
+            st.write(fig)
 
-        # Model params
-        st.markdown("""
-        **How this model works:** This model uses XGBoost Regression, an advanced regularized gradient boosting tool. 
-        Gradient boosting iterates through a series of decision trees each time reducing log loss between the predicted and actual outcomes.
-        This model has been fine-tuned resulting in the following parameters:
-        """)
-        s_mod.named_steps['xgbregressor']
+            # Model params
+            st.markdown("""
+            **How this model works:** This model uses XGBoost Regression, an advanced regularized gradient boosting tool. 
+            Gradient boosting iterates through a series of decision trees each time reducing log loss between the predicted and actual outcomes.
+            This model has been fine-tuned resulting in the following parameters:
+            """)
+            s_mod.named_steps['xgbregressor']
 
+        st.success('Done')
+
+# Car data
 if page == 'Fuel efficiency':
 
     st.sidebar.markdown('Input vehicle specs:')
@@ -685,155 +681,153 @@ if page == 'Fuel efficiency':
     sample_level = st.slider('Sample by level', min_value=0.1, max_value=1.0, value=0.3)
     sample_tree = st.slider('Sample by tree', min_value=0.1, max_value=1.0, value=0.5)
     
-    # ml parameters
-    mod = xgb.XGBRegressor(max_depth=max_d,learning_rate=eta,n_estimators=estimators
-                        , colsample_bylevel=sample_level, colsample_bytree=sample_tree)
-    pipe = make_pipeline(OrdinalEncoder(), mod)
     
-    pipe.fit(X_train, y_train)
-    score = np.around(pipe.score(X_test, y_test),2)
+    # Submit button
+    form = st.form(key='my_form')
+    submit = form.form_submit_button('Run prediction model')
+    if submit:
 
+        with st.spinner(text='Please be patient. Clever things are happening.'):    
 
-    # fit on all
-    pipe.fit(X, y)
+            # ml parameters
+            mod = xgb.XGBRegressor(max_depth=max_d,learning_rate=eta,n_estimators=estimators
+                                , colsample_bylevel=sample_level, colsample_bytree=sample_tree)
+            pipe = make_pipeline(OrdinalEncoder(), mod)
+            
+            pipe.fit(X_train, y_train)
+            score = np.around(pipe.score(X_test, y_test),2)
 
-    # prediction input
-    df_pred = pd.DataFrame({
-    'Fueled by': fuel_type,
-    'Class': v_class,
-    'Drive': drive,
-    'Engine Cylinders': engine_c,
-    'Engine Displacement': engine_d,
-    'Turbocharged': turbo
-    }, index=['Results'])
+            # fit on all
+            pipe.fit(X, y)
 
-    result = np.around(pipe.predict(df_pred),2)
-    if predict == 'Annual Fuel Cost':
-        result = '$'+ str(result[0])
-    else:
-        result = str(result[0])
+            # prediction input
+            df_pred = pd.DataFrame({
+            'Fueled by': fuel_type,
+            'Class': v_class,
+            'Drive': drive,
+            'Engine Cylinders': engine_c,
+            'Engine Displacement': engine_d,
+            'Turbocharged': turbo
+            }, index=['Results'])
+
+            result = np.around(pipe.predict(df_pred),2)
+            if predict == 'Annual Fuel Cost':
+                result = '$'+ str(result[0])
+            else:
+                result = str(result[0])
+            
+            # score
+            pred_results = pd.DataFrame()
+            pred_results['true'] = y
+            pred_results['predicted'] = pipe.predict(X)
+            pred_chart = px.scatter(pred_results, x='true', y='predicted', trendline='ols', trendline_color_override="red",
+                                      title=f'Model Score {score} R2')
+            # results
+            df_pred[predict] = result
+            st.header(f'{predict}: {result}')
+            st.table(df_pred)
+            st.header(f'Score: {score} R2')
+            st.write(pred_chart)
     
-    # score
-    pred_results = pd.DataFrame()
-    pred_results['true'] = y
-    pred_results['predicted'] = pipe.predict(X)
-    pred_chart = px.scatter(pred_results, x='true', y='predicted', trendline='ols', trendline_color_override="red",
-                              title=f'Model Score {score} R2')
-    # results
-    df_pred[predict] = result
-    st.header(f'{predict}: {result}')
-    st.table(df_pred)
-    st.header(f'Score: {score} R2')
-    st.write(pred_chart)
+        st.success('Done')
     
-    # feature importance 
-    feature_names = pipe.named_steps["ordinalencoder"].get_feature_names()
-    feat = pd.DataFrame(
-        {'Feature': X.columns,
-         'Impact': pipe.steps[1][1].feature_importances_}).sort_values(by='Impact',
-                                                                      ascending=False)
-    feat = feat.head(5)
-    feat['Impact'] = pd.Series(["{0:.2f}%".format(val * 100) for val in feat['Impact']], index=feat.index)
-    
-    st.subheader(f"Top 5 features used in predicting {predict}")
-    st.table(feat)
-    
-    st.subheader(f"Correlation analysis using partial dependence")
-    st.markdown("""
-                Partial dependence shows us the relationship between each feature and the models prediction. 
-                This is evaluated by taking an aspect of a feature for example Sports cars and applying that aspect to all the results. 
-                Below we can evaluate how two features correlate with one another and what their predicted output is.
-                """)
+        # feature importance 
+        feature_names = pipe.named_steps["ordinalencoder"].get_feature_names()
+        feat = pd.DataFrame(
+            {'Feature': X.columns,
+             'Impact': pipe.steps[1][1].feature_importances_}).sort_values(by='Impact',
+                                                                          ascending=False)
+        feat = feat.head(5)
+        feat['Impact'] = pd.Series(["{0:.2f}%".format(val * 100) for val in feat['Impact']], index=feat.index)
+        
+        st.subheader(f"Top 5 features used in predicting {predict}")
+        st.table(feat)
+        
+        st.subheader(f"Correlation analysis using partial dependence")
+        st.markdown("""
+                    Partial dependence shows us the relationship between each feature and the models prediction. 
+                    This is evaluated by taking an aspect of a feature for example Sports cars and applying that aspect to all the results. 
+                    Below we can evaluate how two features correlate with one another and what their predicted output is.
+                    """)
 
-    feature1 = st.selectbox('Cylinders / Displacment', ['Engine Cylinders','Engine Displacement'])
-    core_feat = feat.loc[~(feat['Feature'].isin(['Engine Cylinders','Engine Displacement']))]
-    feature2 = st.selectbox('Select second feature', sorted(core_feat['Feature'].unique()))
+        feature1 = st.selectbox('Cylinders / Displacment', ['Engine Cylinders','Engine Displacement'])
+        core_feat = feat.loc[~(feat['Feature'].isin(['Engine Cylinders','Engine Displacement']))]
+        feature2 = st.selectbox('Select second feature', sorted(core_feat['Feature'].unique()))
 
-    # analyize feature datatypes and length
-    OE1 = pd.DataFrame({
-    feature1 : X_train[feature1],
-    'Encoder' : pipe[0].transform(X_train)[feature1]})
-    OE1 = OE1.drop_duplicates().reset_index().drop('index', axis=1)
-    datatype1 = np.issubdtype(OE1[feature1].dtype, np.number)
-    OE2 = pd.DataFrame({
-    feature2 : X_train[feature2],
-    'Encoder' : pipe[0].transform(X_train)[feature2]})
-    OE2 = OE2.drop_duplicates().reset_index().drop('index', axis=1)
-    datatype2 = np.issubdtype(OE2[feature2].dtype, np.number)
+        # analyize feature datatypes and length
+        OE1 = pd.DataFrame({
+        feature1 : X_train[feature1],
+        'Encoder' : pipe[0].transform(X_train)[feature1]})
+        OE1 = OE1.drop_duplicates().reset_index().drop('index', axis=1)
+        datatype1 = np.issubdtype(OE1[feature1].dtype, np.number)
+        OE2 = pd.DataFrame({
+        feature2 : X_train[feature2],
+        'Encoder' : pipe[0].transform(X_train)[feature2]})
+        OE2 = OE2.drop_duplicates().reset_index().drop('index', axis=1)
+        datatype2 = np.issubdtype(OE2[feature2].dtype, np.number)
 
-    # set gridpoints
-    gridpoints = []
-    gridtype   = []
-    if datatype1:
-        gridpoints.append(8)
-        gridtype.append('percentile')
-    else:
-        gridpoints.append(len(OE1))
-        gridtype.append('equal')
-    if datatype2:
-        gridpoints.append(8)
-        gridtype.append('percentile')
-    else:
-        gridpoints.append(len(OE2))
-        gridtype.append('equal')
-    
-    gbm_inter = pdp.pdp_interact(
-            model=pipe[1], dataset=pipe[0].transform(X_train), model_features=pipe[0].get_feature_names(), 
-            features=[feature1, feature2],num_grid_points=gridpoints, grid_types=gridtype)
-    fig, axes = pdp.pdp_interact_plot(
-        gbm_inter, [feature1, feature2], x_quantile=True, plot_type='grid', plot_pdp=True)
-    axes['pdp_inter_ax']['_pdp_inter_ax'].set_yticklabels(OE2[feature2].tolist())
-    
-    st.write(fig)
-   
-    st.markdown("**Gradient boosting model & parameter descriptions:**")
-    st.markdown("""Gradient Boosting like Random Forests work off an ensemble of decision trees. Decision trees are great for filtering out outliers 
-                and noise that don't represent the data as a whole. However, decision trees alone are week predictors and require the use of an ensemble to 
-                become effective. Below is an example of a simple three 
-                tree ensemble with each circle representing a single terminal node. Each terminal node makes a split on a feature for example, 
-                engine cylinders greater than 6. The split will divide the feature into two further terminal nodes on the next layer one with greater than 
-                6 cylinders and the other less than or equal to 6 cylinders. These subsequent notes are then 
-                split on another feature and so on. The bottom layer of each tree will result in what's called a leaf, where the tree will make 
-                a prediction based on the splits before it and compare this prediction with actuals to then determine the error rate (how much it was off by). 
-                The initial prediction of the first tree is almost entirely random and won't represent anything 
-                close to the truth. For each tree or round in the ensemble, the model attempts to reduce the error rate by comparing the error rates to the tree before it. 
-                Overfitting is where a model wrongly assumes that certain features correlate to a certain outcome based on the information received. We can identify 
-                overfitting by training our models on training sets and testing them on a separate dataset that the model has not been trained on. Overfitting is 
-                very common with machine learning techniques, but luckily we have parameters that we can tune to overcome this. Below is a description of some of the 
-                parameters we can use to tune our models.""")
+        # set gridpoints
+        gridpoints = []
+        gridtype   = []
+        if datatype1:
+            gridpoints.append(8)
+            gridtype.append('percentile')
+        else:
+            gridpoints.append(len(OE1))
+            gridtype.append('equal')
+        if datatype2:
+            gridpoints.append(8)
+            gridtype.append('percentile')
+        else:
+            gridpoints.append(len(OE2))
+            gridtype.append('equal')
+        
+        gbm_inter = pdp.pdp_interact(
+                model=pipe[1], dataset=pipe[0].transform(X_train), model_features=pipe[0].get_feature_names(), 
+                features=[feature1, feature2],num_grid_points=gridpoints, grid_types=gridtype)
+        fig, axes = pdp.pdp_interact_plot(
+            gbm_inter, [feature1, feature2], x_quantile=True, plot_type='grid', plot_pdp=True)
+        axes['pdp_inter_ax']['_pdp_inter_ax'].set_yticklabels(OE2[feature2].tolist())
+        
+        st.write(fig)
+       
+        st.markdown("**Gradient boosting model & parameter descriptions:**")
+        st.markdown("""Gradient Boosting like Random Forests work off an ensemble of decision trees. Decision trees are great for filtering out outliers 
+                    and noise that don't represent the data as a whole. However, decision trees alone are week predictors and require the use of an ensemble to 
+                    become effective. Below is an example of a simple three 
+                    tree ensemble with each circle representing a single terminal node. Each terminal node makes a split on a feature for example, 
+                    engine cylinders greater than 6. The split will divide the feature into two further terminal nodes on the next layer one with greater than 
+                    6 cylinders and the other less than or equal to 6 cylinders. These subsequent notes are then 
+                    split on another feature and so on. The bottom layer of each tree will result in what's called a leaf, where the tree will make 
+                    a prediction based on the splits before it and compare this prediction with actuals to then determine the error rate (how much it was off by). 
+                    The initial prediction of the first tree is almost entirely random and won't represent anything 
+                    close to the truth. For each tree or round in the ensemble, the model attempts to reduce the error rate by comparing the error rates to the tree before it. 
+                    Overfitting is where a model wrongly assumes that certain features correlate to a certain outcome based on the information received. We can identify 
+                    overfitting by training our models on training sets and testing them on a separate dataset that the model has not been trained on. Overfitting is 
+                    very common with machine learning techniques, but luckily we have parameters that we can tune to overcome this. Below is a description of some of the 
+                    parameters we can use to tune our models.""")
 
-    st.image('https://www.mdpi.com/water/water-12-01703/article_deploy/html/images/water-12-01703-g001.png', width=650)
+        st.image('https://www.mdpi.com/water/water-12-01703/article_deploy/html/images/water-12-01703-g001.png', width=650)
 
-    st.markdown("""**Number of estimators:** This is the number of rounds the model will do before stopping. _Helps to improve accuracy. 
-                however, to many estimators will cause the model to be trained on noise resulting in overfitting and low accuracy._""")
-    st.markdown("""**Learning rate:** Prevents overfitting by slowing down the rate in which corrections are made on subsequent rounds. 
-                _The lower the learning rate the less overfitting that will occur. However, more estimators are then required. (estimators and 
-                learning rate need to be tuned together)._""")
-    st.markdown("""**Max depth:** The depth of a tree is the number of terminal nodes per tree. _While the max depth of a tree can go upto 30 on a 
-                32-bit machine you would generally never want to exceed 10 as a high number of terminal nodes causes overfitting._""")
-    st.markdown("""**Sample by level:** Defines what percentage of features will be selected to be used on subsequent terminal node splits. 
-                _Reducing the possible number of features used in each split helps the model to reduce overfitting. However, if set too high 
-                it will prevent the model from making correlations between certain features_.""")
-    st.markdown("""**Sample by tree:** Defines what percentage of features will be selected to be used on each tree. 
-                _Similar to sample by level this helps to reduce overfitting_""")
+        st.markdown("""**Number of estimators:** This is the number of rounds the model will do before stopping. _Helps to improve accuracy. 
+                    however, to many estimators will cause the model to be trained on noise resulting in overfitting and low accuracy._""")
+        st.markdown("""**Learning rate:** Prevents overfitting by slowing down the rate in which corrections are made on subsequent rounds. 
+                    _The lower the learning rate the less overfitting that will occur. However, more estimators are then required. (estimators and 
+                    learning rate need to be tuned together)._""")
+        st.markdown("""**Max depth:** The depth of a tree is the number of terminal nodes per tree. _While the max depth of a tree can go upto 30 on a 
+                    32-bit machine you would generally never want to exceed 10 as a high number of terminal nodes causes overfitting._""")
+        st.markdown("""**Sample by level:** Defines what percentage of features will be selected to be used on subsequent terminal node splits. 
+                    _Reducing the possible number of features used in each split helps the model to reduce overfitting. However, if set too high 
+                    it will prevent the model from making correlations between certain features_.""")
+        st.markdown("""**Sample by tree:** Defines what percentage of features will be selected to be used on each tree. 
+                    _Similar to sample by level this helps to reduce overfitting_""")
 
-    # Model params
-    st.markdown("""
-    **How this model works:** This model uses XGBoost Regression, an advanced regularized gradient boosting tool. 
-    Gradient boosting iterates through a series of decision trees each time reducing log loss between the predicted and actual outcomes.
-    This model is running live each time a parameter is changed. 
-    Current parameters used in the model are:
-    """)
-    #st.markdown(pipe.named_steps)
-    pipe.named_steps['xgbregressor']
-    
-
-
-
-
-
-
-    
-    
-    
-    
+        # Model params
+        st.markdown("""
+        **How this model works:** This model uses XGBoost Regression, an advanced regularized gradient boosting tool. 
+        Gradient boosting iterates through a series of decision trees each time reducing log loss between the predicted and actual outcomes.
+        This model is running live each time a parameter is changed. 
+        Current parameters used in the model are:
+        """)
+        #st.markdown(pipe.named_steps)
+        pipe.named_steps['xgbregressor']
