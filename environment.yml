@@ -1,0 +1,21 @@
+name: portenv
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - pip=21.1.3=py38hecd8cb5_0
+  - python=3.8.3=h26836e1_2
+  - pip:
+    - streamlit == 0.73.0
+    - scikit-learn
+    - pandas == 1.0.3
+    - category-encoders == 2.0.0
+    - protobuf == 3.13.0
+    - xgboost == 1.2.0
+    - numpy == 1.19.2
+    - plotly == 4.12.0
+    - PDPbox == 0.2.0
+    - tensorflow == 2.4.0
+    - tensorflow-estimator == 2.4.0
+prefix: /Users/PaulaMoody/anaconda3/envs/portenv
+
