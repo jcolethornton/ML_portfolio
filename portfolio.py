@@ -169,7 +169,7 @@ if page == 'Kickstarter planner':
     # create new kickstarter campaign
     st.sidebar.markdown('Input campaign details')
     cats = df[['main_category', 'category']].drop_duplicates()
-    name = st.text_input("Name of your project", value="My new Campaign")
+    name = st.text_input("Name of your project")
     mcat = st.sidebar.selectbox('Main Category', cats.main_category.unique())
     cat = st.sidebar.selectbox('Sub Category', cats.loc[cats['main_category'] == mcat]['category'].unique())
     goal = st.sidebar.number_input("Set Funding goal",min_value=100, step=100, value=100)
@@ -179,9 +179,9 @@ if page == 'Kickstarter planner':
     goal_group = df.loc[df['goal_adj'] == goal]['goal_group'].unique()[0]
    
     # Submit button
-    form = st.form(key='my_form')
-    submit = form.form_submit_button('Run prediction model')
-    if submit:
+    #form = st.form(key='my_form')
+    #submit = form.form_submit_button('Run prediction model')
+    if name != '':
 
         with st.spinner(text='Please be patient. Clever things are happening.'):    
         
@@ -369,7 +369,7 @@ if page == 'Song popularity':
                  'trap',
                  'uplifting trance']
     
-    name = st.text_input("Name of your song", value="My new song") # doesn't input into model
+    name = st.text_input("Name of your song") # doesn't input into model
     st.sidebar.markdown('Input song parameters')
     genre = st.sidebar.selectbox('Genre', genres, index=46) 
     tempo = st.sidebar.slider('Tempo', min_value=0.0, max_value=250.0, value=120.0)
@@ -410,9 +410,9 @@ if page == 'Song popularity':
              'duration_min']
         
     # Submit button
-    form = st.form(key='my_form')
-    submit = form.form_submit_button('Run prediction model')
-    if submit:
+    #form = st.form(key='my_form')
+    #submit = form.form_submit_button('Run prediction model')
+    if name != '':
 
         with st.spinner(text='Please be patient. Clever things are happening.'):    
 
@@ -683,151 +683,151 @@ if page == 'Fuel efficiency':
     
     
     # Submit button
-    form = st.form(key='my_form')
-    submit = form.form_submit_button('Run prediction model')
-    if submit:
+    #form = st.form(key='my_form')
+    #submit = form.form_submit_button('Run prediction model')
+    #if submit:
 
-        with st.spinner(text='Please be patient. Clever things are happening.'):    
+    with st.spinner(text='Please be patient. Clever things are happening.'):    
 
-            # ml parameters
-            mod = xgb.XGBRegressor(max_depth=max_d,learning_rate=eta,n_estimators=estimators
-                                , colsample_bylevel=sample_level, colsample_bytree=sample_tree)
-            pipe = make_pipeline(OrdinalEncoder(), mod)
-            
-            pipe.fit(X_train, y_train)
-            score = np.around(pipe.score(X_test, y_test),2)
-
-            # fit on all
-            pipe.fit(X, y)
-
-            # prediction input
-            df_pred = pd.DataFrame({
-            'Fueled by': fuel_type,
-            'Class': v_class,
-            'Drive': drive,
-            'Engine Cylinders': engine_c,
-            'Engine Displacement': engine_d,
-            'Turbocharged': turbo
-            }, index=['Results'])
-
-            result = np.around(pipe.predict(df_pred),2)
-            if predict == 'Annual Fuel Cost':
-                result = '$'+ str(result[0])
-            else:
-                result = str(result[0])
-            
-            # score
-            pred_results = pd.DataFrame()
-            pred_results['true'] = y
-            pred_results['predicted'] = pipe.predict(X)
-            pred_chart = px.scatter(pred_results, x='true', y='predicted', trendline='ols', trendline_color_override="red",
-                                      title=f'Model Score {score} R2')
-            # results
-            df_pred[predict] = result
-            st.header(f'{predict}: {result}')
-            st.table(df_pred)
-            st.header(f'Score: {score} R2')
-            st.write(pred_chart)
-    
-        st.success('Done')
-    
-        # feature importance 
-        feature_names = pipe.named_steps["ordinalencoder"].get_feature_names()
-        feat = pd.DataFrame(
-            {'Feature': X.columns,
-             'Impact': pipe.steps[1][1].feature_importances_}).sort_values(by='Impact',
-                                                                          ascending=False)
-        feat = feat.head(5)
-        feat['Impact'] = pd.Series(["{0:.2f}%".format(val * 100) for val in feat['Impact']], index=feat.index)
+        # ml parameters
+        mod = xgb.XGBRegressor(max_depth=max_d,learning_rate=eta,n_estimators=estimators
+                            , colsample_bylevel=sample_level, colsample_bytree=sample_tree)
+        pipe = make_pipeline(OrdinalEncoder(), mod)
         
-        st.subheader(f"Top 5 features used in predicting {predict}")
-        st.table(feat)
-        
-        st.subheader(f"Correlation analysis using partial dependence")
-        st.markdown("""
-                    Partial dependence shows us the relationship between each feature and the models prediction. 
-                    This is evaluated by taking an aspect of a feature for example Sports cars and applying that aspect to all the results. 
-                    Below we can evaluate how two features correlate with one another and what their predicted output is.
-                    """)
+        pipe.fit(X_train, y_train)
+        score = np.around(pipe.score(X_test, y_test),2)
 
-        feature1 = st.selectbox('Cylinders / Displacment', ['Engine Cylinders','Engine Displacement'])
-        core_feat = feat.loc[~(feat['Feature'].isin(['Engine Cylinders','Engine Displacement']))]
-        feature2 = st.selectbox('Select second feature', sorted(core_feat['Feature'].unique()))
+        # fit on all
+        pipe.fit(X, y)
 
-        # analyize feature datatypes and length
-        OE1 = pd.DataFrame({
-        feature1 : X_train[feature1],
-        'Encoder' : pipe[0].transform(X_train)[feature1]})
-        OE1 = OE1.drop_duplicates().reset_index().drop('index', axis=1)
-        datatype1 = np.issubdtype(OE1[feature1].dtype, np.number)
-        OE2 = pd.DataFrame({
-        feature2 : X_train[feature2],
-        'Encoder' : pipe[0].transform(X_train)[feature2]})
-        OE2 = OE2.drop_duplicates().reset_index().drop('index', axis=1)
-        datatype2 = np.issubdtype(OE2[feature2].dtype, np.number)
+        # prediction input
+        df_pred = pd.DataFrame({
+        'Fueled by': fuel_type,
+        'Class': v_class,
+        'Drive': drive,
+        'Engine Cylinders': engine_c,
+        'Engine Displacement': engine_d,
+        'Turbocharged': turbo
+        }, index=['Results'])
 
-        # set gridpoints
-        gridpoints = []
-        gridtype   = []
-        if datatype1:
-            gridpoints.append(8)
-            gridtype.append('percentile')
+        result = np.around(pipe.predict(df_pred),2)
+        if predict == 'Annual Fuel Cost':
+            result = '$'+ str(result[0])
         else:
-            gridpoints.append(len(OE1))
-            gridtype.append('equal')
-        if datatype2:
-            gridpoints.append(8)
-            gridtype.append('percentile')
-        else:
-            gridpoints.append(len(OE2))
-            gridtype.append('equal')
+            result = str(result[0])
         
-        gbm_inter = pdp.pdp_interact(
-                model=pipe[1], dataset=pipe[0].transform(X_train), model_features=pipe[0].get_feature_names(), 
-                features=[feature1, feature2],num_grid_points=gridpoints, grid_types=gridtype)
-        fig, axes = pdp.pdp_interact_plot(
-            gbm_inter, [feature1, feature2], x_quantile=True, plot_type='grid', plot_pdp=True)
-        axes['pdp_inter_ax']['_pdp_inter_ax'].set_yticklabels(OE2[feature2].tolist())
-        
-        st.write(fig)
-       
-        st.markdown("**Gradient boosting model & parameter descriptions:**")
-        st.markdown("""Gradient Boosting like Random Forests work off an ensemble of decision trees. Decision trees are great for filtering out outliers 
-                    and noise that don't represent the data as a whole. However, decision trees alone are week predictors and require the use of an ensemble to 
-                    become effective. Below is an example of a simple three 
-                    tree ensemble with each circle representing a single terminal node. Each terminal node makes a split on a feature for example, 
-                    engine cylinders greater than 6. The split will divide the feature into two further terminal nodes on the next layer one with greater than 
-                    6 cylinders and the other less than or equal to 6 cylinders. These subsequent notes are then 
-                    split on another feature and so on. The bottom layer of each tree will result in what's called a leaf, where the tree will make 
-                    a prediction based on the splits before it and compare this prediction with actuals to then determine the error rate (how much it was off by). 
-                    The initial prediction of the first tree is almost entirely random and won't represent anything 
-                    close to the truth. For each tree or round in the ensemble, the model attempts to reduce the error rate by comparing the error rates to the tree before it. 
-                    Overfitting is where a model wrongly assumes that certain features correlate to a certain outcome based on the information received. We can identify 
-                    overfitting by training our models on training sets and testing them on a separate dataset that the model has not been trained on. Overfitting is 
-                    very common with machine learning techniques, but luckily we have parameters that we can tune to overcome this. Below is a description of some of the 
-                    parameters we can use to tune our models.""")
+        # score
+        pred_results = pd.DataFrame()
+        pred_results['true'] = y
+        pred_results['predicted'] = pipe.predict(X)
+        pred_chart = px.scatter(pred_results, x='true', y='predicted', trendline='ols', trendline_color_override="red",
+                                  title=f'Model Score {score} R2')
+        # results
+        df_pred[predict] = result
+        st.header(f'{predict}: {result}')
+        st.table(df_pred)
+        st.header(f'Score: {score} R2')
+        st.write(pred_chart)
 
-        st.image('https://www.mdpi.com/water/water-12-01703/article_deploy/html/images/water-12-01703-g001.png', width=650)
+    st.success('Done')
 
-        st.markdown("""**Number of estimators:** This is the number of rounds the model will do before stopping. _Helps to improve accuracy. 
-                    however, to many estimators will cause the model to be trained on noise resulting in overfitting and low accuracy._""")
-        st.markdown("""**Learning rate:** Prevents overfitting by slowing down the rate in which corrections are made on subsequent rounds. 
-                    _The lower the learning rate the less overfitting that will occur. However, more estimators are then required. (estimators and 
-                    learning rate need to be tuned together)._""")
-        st.markdown("""**Max depth:** The depth of a tree is the number of terminal nodes per tree. _While the max depth of a tree can go upto 30 on a 
-                    32-bit machine you would generally never want to exceed 10 as a high number of terminal nodes causes overfitting._""")
-        st.markdown("""**Sample by level:** Defines what percentage of features will be selected to be used on subsequent terminal node splits. 
-                    _Reducing the possible number of features used in each split helps the model to reduce overfitting. However, if set too high 
-                    it will prevent the model from making correlations between certain features_.""")
-        st.markdown("""**Sample by tree:** Defines what percentage of features will be selected to be used on each tree. 
-                    _Similar to sample by level this helps to reduce overfitting_""")
+    # feature importance 
+    feature_names = pipe.named_steps["ordinalencoder"].get_feature_names()
+    feat = pd.DataFrame(
+        {'Feature': X.columns,
+         'Impact': pipe.steps[1][1].feature_importances_}).sort_values(by='Impact',
+                                                                      ascending=False)
+    feat = feat.head(5)
+    feat['Impact'] = pd.Series(["{0:.2f}%".format(val * 100) for val in feat['Impact']], index=feat.index)
+    
+    st.subheader(f"Top 5 features used in predicting {predict}")
+    st.table(feat)
+    
+    st.subheader(f"Correlation analysis using partial dependence")
+    st.markdown("""
+                Partial dependence shows us the relationship between each feature and the models prediction. 
+                This is evaluated by taking an aspect of a feature for example Sports cars and applying that aspect to all the results. 
+                Below we can evaluate how two features correlate with one another and what their predicted output is.
+                """)
 
-        # Model params
-        st.markdown("""
-        **How this model works:** This model uses XGBoost Regression, an advanced regularized gradient boosting tool. 
-        Gradient boosting iterates through a series of decision trees each time reducing log loss between the predicted and actual outcomes.
-        This model is running live each time a parameter is changed. 
-        Current parameters used in the model are:
-        """)
-        #st.markdown(pipe.named_steps)
-        pipe.named_steps['xgbregressor']
+    feature1 = st.selectbox('Cylinders / Displacment', ['Engine Cylinders','Engine Displacement'])
+    core_feat = feat.loc[~(feat['Feature'].isin(['Engine Cylinders','Engine Displacement']))]
+    feature2 = st.selectbox('Select second feature', sorted(core_feat['Feature'].unique()))
+
+    # analyize feature datatypes and length
+    OE1 = pd.DataFrame({
+    feature1 : X_train[feature1],
+    'Encoder' : pipe[0].transform(X_train)[feature1]})
+    OE1 = OE1.drop_duplicates().reset_index().drop('index', axis=1)
+    datatype1 = np.issubdtype(OE1[feature1].dtype, np.number)
+    OE2 = pd.DataFrame({
+    feature2 : X_train[feature2],
+    'Encoder' : pipe[0].transform(X_train)[feature2]})
+    OE2 = OE2.drop_duplicates().reset_index().drop('index', axis=1)
+    datatype2 = np.issubdtype(OE2[feature2].dtype, np.number)
+
+    # set gridpoints
+    gridpoints = []
+    gridtype   = []
+    if datatype1:
+        gridpoints.append(8)
+        gridtype.append('percentile')
+    else:
+        gridpoints.append(len(OE1))
+        gridtype.append('equal')
+    if datatype2:
+        gridpoints.append(8)
+        gridtype.append('percentile')
+    else:
+        gridpoints.append(len(OE2))
+        gridtype.append('equal')
+    
+    gbm_inter = pdp.pdp_interact(
+            model=pipe[1], dataset=pipe[0].transform(X_train), model_features=pipe[0].get_feature_names(), 
+            features=[feature1, feature2],num_grid_points=gridpoints, grid_types=gridtype)
+    fig, axes = pdp.pdp_interact_plot(
+        gbm_inter, [feature1, feature2], x_quantile=True, plot_type='grid', plot_pdp=True)
+    axes['pdp_inter_ax']['_pdp_inter_ax'].set_yticklabels(OE2[feature2].tolist())
+    
+    st.write(fig)
+   
+    st.markdown("**Gradient boosting model & parameter descriptions:**")
+    st.markdown("""Gradient Boosting like Random Forests work off an ensemble of decision trees. Decision trees are great for filtering out outliers 
+                and noise that don't represent the data as a whole. However, decision trees alone are week predictors and require the use of an ensemble to 
+                become effective. Below is an example of a simple three 
+                tree ensemble with each circle representing a single terminal node. Each terminal node makes a split on a feature for example, 
+                engine cylinders greater than 6. The split will divide the feature into two further terminal nodes on the next layer one with greater than 
+                6 cylinders and the other less than or equal to 6 cylinders. These subsequent notes are then 
+                split on another feature and so on. The bottom layer of each tree will result in what's called a leaf, where the tree will make 
+                a prediction based on the splits before it and compare this prediction with actuals to then determine the error rate (how much it was off by). 
+                The initial prediction of the first tree is almost entirely random and won't represent anything 
+                close to the truth. For each tree or round in the ensemble, the model attempts to reduce the error rate by comparing the error rates to the tree before it. 
+                Overfitting is where a model wrongly assumes that certain features correlate to a certain outcome based on the information received. We can identify 
+                overfitting by training our models on training sets and testing them on a separate dataset that the model has not been trained on. Overfitting is 
+                very common with machine learning techniques, but luckily we have parameters that we can tune to overcome this. Below is a description of some of the 
+                parameters we can use to tune our models.""")
+
+    st.image('https://www.mdpi.com/water/water-12-01703/article_deploy/html/images/water-12-01703-g001.png', width=650)
+
+    st.markdown("""**Number of estimators:** This is the number of rounds the model will do before stopping. _Helps to improve accuracy. 
+                however, to many estimators will cause the model to be trained on noise resulting in overfitting and low accuracy._""")
+    st.markdown("""**Learning rate:** Prevents overfitting by slowing down the rate in which corrections are made on subsequent rounds. 
+                _The lower the learning rate the less overfitting that will occur. However, more estimators are then required. (estimators and 
+                learning rate need to be tuned together)._""")
+    st.markdown("""**Max depth:** The depth of a tree is the number of terminal nodes per tree. _While the max depth of a tree can go upto 30 on a 
+                32-bit machine you would generally never want to exceed 10 as a high number of terminal nodes causes overfitting._""")
+    st.markdown("""**Sample by level:** Defines what percentage of features will be selected to be used on subsequent terminal node splits. 
+                _Reducing the possible number of features used in each split helps the model to reduce overfitting. However, if set too high 
+                it will prevent the model from making correlations between certain features_.""")
+    st.markdown("""**Sample by tree:** Defines what percentage of features will be selected to be used on each tree. 
+                _Similar to sample by level this helps to reduce overfitting_""")
+
+    # Model params
+    st.markdown("""
+    **How this model works:** This model uses XGBoost Regression, an advanced regularized gradient boosting tool. 
+    Gradient boosting iterates through a series of decision trees each time reducing log loss between the predicted and actual outcomes.
+    This model is running live each time a parameter is changed. 
+    Current parameters used in the model are:
+    """)
+    #st.markdown(pipe.named_steps)
+    pipe.named_steps['xgbregressor']
