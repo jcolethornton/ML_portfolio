@@ -7,4 +7,13 @@ dependencies:
   - python=3.8.3
   - pip
   - pip:
-    - -r file:requirements.txt
+    - streamlit == 0.73.0
+    - plotly == 4.12.0
+    - scikit-learn
+    - pandas == 1.0.3
+    - category-encoders == 2.0.0
+    - xgboost == 1.2.0
+    - numpy == 1.19.2
+    - PDPbox == 0.2.0
+    - tensorflow == 2.4.0
+    - tensorflow-estimator == 2.4.0
