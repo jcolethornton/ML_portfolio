@@ -4,19 +4,19 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-streamlit = "==0.84.0"
+streamlit = "*"
 scikit-learn = "*"
-pandas = "==1.0.3"
-category-encoders = "==2.0.0"
-protobuf = "==3.13.0"
-xgboost = "==1.2.0"
-numpy = "==1.19.2"
-plotly = "==4.12.0"
-pdpbox = "==0.2.0"
-tensorflow = "==2.4.0"
-tensorflow-estimator = "==2.4.0"
+pandas = "*"
+category-encoders = "*"
+protobuf = "*"
+xgboost = "*"
+numpy = "*"
+plotly = "*"
+pdpbox = "*"
+tensorflow = "*"
+tensorflow-estimator = "*"
 
 [dev-packages]
 
 [requires]
-python_version = "3.8"
+python_version = "3.8.16"
